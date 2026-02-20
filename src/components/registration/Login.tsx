@@ -1,14 +1,15 @@
 import { useState } from 'react';
-import { UserPlus, LogIn, ChevronRight } from 'lucide-react';
+import { UserPlus, LogIn, ChevronRight, CheckCircle2 } from 'lucide-react';
 
-import InputField from './InputField';
-import Button from './Button';
+import InputField from '../InputField';
+import Button from '../Button';
 
 interface LoginProps {
   onSwitch: () => void;
+  successMessage?: string | null;
 }
 
-export default function Login({ onSwitch }: LoginProps): React.ReactElement {
+export default function Login({ onSwitch, successMessage }: LoginProps): React.ReactElement {
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
 
@@ -24,6 +25,14 @@ export default function Login({ onSwitch }: LoginProps): React.ReactElement {
           Sign in
         </h1>
       </div>
+
+      {/* Registration success label */}
+      {successMessage && (
+        <div className="flex items-center gap-2 mb-5 px-3 py-2.5 rounded-md bg-green-500/10 border border-green-500/25">
+          <CheckCircle2 size={13} className="text-green-400 shrink-0" />
+          <p className="font-mono text-[11px] text-green-400">{successMessage}</p>
+        </div>
+      )}
 
       {/* Fields */}
       <div className="flex flex-col gap-4 mb-6">

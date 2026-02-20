@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import Login from './Login';
-import { Logo } from './Logo';
+import { Logo } from '../Logo';
 import { Register } from './Register';
 
 export default function AuthCard(): React.ReactElement {
   const [view, setView] = useState<'login' | 'register'>('login');
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   return (
     <div className="relative w-full max-w-[420px]">
@@ -15,9 +16,21 @@ export default function AuthCard(): React.ReactElement {
           {/* Logo / Brand */}
           <Logo />
           {view === 'login' ? (
-            <Login onSwitch={() => setView('register')} />
+            <Login
+              onSwitch={() => {
+                setSuccessMessage(null);
+                setView('register');
+              }}
+              successMessage={successMessage}
+            />
           ) : (
-            <Register onSwitch={() => setView('login')} />
+            <Register
+              onSwitch={() => setView('login')}
+              onSuccess={() => {
+                setSuccessMessage('Registration Successful');
+                setView('login');
+              }}
+            />
           )}
         </div>
       </div>
