@@ -1,19 +1,10 @@
-import Button from './components/Button';
-import Field from './components/InputField';
+import AuthCard from './components/AuthCard';
 
 function App() {
   return (
-    <>
-      <Button
-        mode="blue"
-        onClick={async () => {
-          await new Promise((r) => setTimeout(r, 2000));
-        }}
-      >
-        Sync Payroll
-      </Button>
-      <Field label="Employee ID" placeholder="Enter employee ID" />
-    </>
+    <div className="flex items-center justify-center min-h-screen">
+      <AuthCard />
+    </div>
   );
 }
 
