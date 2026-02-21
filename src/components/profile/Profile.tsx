@@ -1,12 +1,14 @@
 import { useState } from 'react';
-import { Clock, Calendar, Building2 } from 'lucide-react';
+import { Clock, Calendar, Building2, MapPin } from 'lucide-react';
 import Avatar from './Avatar';
 import PunchButton, { type PunchState } from './PunchButton';
+
 interface ProfileProps {
   name?: string;
   role?: string;
   department?: string;
-
+  timezone?: string;
+  employeeId?: string;
   avatarSrc?: string;
 }
 
@@ -14,6 +16,7 @@ export default function Profile({
   name = 'John Doe',
   role = 'Senior HR Specialist',
   department = 'Human Resources',
+  timezone = 'Manila, PH',
 
   avatarSrc,
 }: ProfileProps): React.ReactElement {
@@ -74,6 +77,9 @@ export default function Profile({
           <div className="flex items-center gap-2 mt-2 flex-wrap justify-center">
             <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/[0.08] border border-blue-500/20 font-mono text-[10px] text-blue-400 tracking-wide">
               <Building2 size={9} /> {department}
+            </span>
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/[0.04] border border-white/[0.07] font-mono text-[10px] text-neutral-500 tracking-wide">
+              <MapPin size={9} /> {timezone}
             </span>
           </div>
         </div>

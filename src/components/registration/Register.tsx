@@ -3,7 +3,8 @@ import { CheckCircle2, XCircle, Shield, LogIn, ChevronRight, AlertCircle } from 
 
 import InputField from '../InputField';
 import Button from '../Button';
-import { registerUser } from '../../store/authStore';
+import { completeRegistration } from '../../store/authStore';
+import { DEPARTMENTS, TIMEZONES } from '../../data/departments';
 
 interface RegisterProps {
   onSwitch: () => void;
@@ -16,10 +17,28 @@ export function Register({ onSwitch, onSuccess }: RegisterProps): React.ReactEle
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [confirmPassword, setConfirmPassword] = useState<string>('');
+  const [department, setDepartment] = useState<string>('');
+  const [role, setRole] = useState<string>('');
+  const [timezone, setTimezone] = useState<string>('');
   const [errors, setErrors] = useState<
-    Partial<Record<'firstname' | 'lastname' | 'email' | 'password' | 'confirmPassword', string>>
+    Partial<
+      Record<
+        | 'firstname'
+        | 'lastname'
+        | 'email'
+        | 'password'
+        | 'confirmPassword'
+        | 'department'
+        | 'role'
+        | 'timezone',
+        string
+      >
+    >
   >({});
   const [firebaseError, setFirebaseError] = useState<string | null>(null);
+
+  const selectedDept = DEPARTMENTS.find((d) => d.value === department);
+  const roleOptions = selectedDept ? selectedDept.roles : [];
 
   const validate = (): boolean => {
     const next: typeof errors = {};
@@ -31,6 +50,9 @@ export function Register({ onSwitch, onSuccess }: RegisterProps): React.ReactEle
     else if (password.length < 8) next.password = 'Must be at least 8 characters';
     if (!confirmPassword) next.confirmPassword = 'Please confirm your password';
     else if (confirmPassword !== password) next.confirmPassword = 'Passwords do not match';
+    if (!department) next.department = 'Department is required';
+    if (!role) next.role = 'Role is required';
+    if (!timezone) next.timezone = 'Timezone is required';
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -38,7 +60,15 @@ export function Register({ onSwitch, onSuccess }: RegisterProps): React.ReactEle
   const handleRegister = async (): Promise<void> => {
     if (!validate()) return;
     setFirebaseError(null);
-    const result = await registerUser({ firstname, lastname, email, password });
+    const result = await completeRegistration({
+      firstname,
+      lastname,
+      email,
+      password,
+      department,
+      role,
+      timezone,
+    });
     if (result.success) {
       onSuccess();
     } else {
@@ -96,6 +126,46 @@ export function Register({ onSwitch, onSuccess }: RegisterProps): React.ReactEle
             setErrors((e) => ({ ...e, email: undefined }));
           }}
           error={errors.email}
+        />
+        <div className="flex gap-4">
+          <InputField
+            mode="dropdown"
+            label="Department"
+            placeholder="Select department"
+            value={department}
+            onChange={(v) => {
+              setDepartment(v);
+              setRole('');
+              setErrors((e) => ({ ...e, department: undefined, role: undefined }));
+            }}
+            options={DEPARTMENTS.map((d) => ({ label: d.label, value: d.value }))}
+            error={errors.department}
+          />
+          <InputField
+            mode="dropdown"
+            label="Role"
+            placeholder={department ? 'Select role' : 'Choose dept first'}
+            value={role}
+            onChange={(v) => {
+              setRole(v);
+              setErrors((e) => ({ ...e, role: undefined }));
+            }}
+            options={roleOptions}
+            disabled={!department}
+            error={errors.role}
+          />
+        </div>
+        <InputField
+          mode="dropdown"
+          label="Timezone"
+          placeholder="Select timezone"
+          value={timezone}
+          onChange={(v) => {
+            setTimezone(v);
+            setErrors((e) => ({ ...e, timezone: undefined }));
+          }}
+          options={TIMEZONES}
+          error={errors.timezone}
         />
         <InputField
           mode="password"
