@@ -70,7 +70,7 @@ export default function StatCard({ label, value, icon, accent = 'blue', sublabel
         <span
           className={`${s.text} ${s.bg} p-1.5 rounded-md border ${s.border} flex items-center justify-center`}
         >
-          {React.cloneElement(icon, { size: 14 })}
+          {React.cloneElement(icon, { size: 14 } as React.HTMLAttributes<unknown>)}
         </span>
       </div>
 
