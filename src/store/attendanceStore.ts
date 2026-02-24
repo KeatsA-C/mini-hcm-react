@@ -74,6 +74,21 @@ export interface WeeklySummary {
   days: DailySummary[];
 }
 
+// Raw shape returned by the API
+interface PunchStatusRaw {
+  punchedIn: boolean;
+  openPunch: {
+    id: string;
+    uid: string;
+    punchIn: string;
+    punchOut: string | null;
+    metrics: null;
+    createdAt: string;
+  } | null;
+  todaySummary: null | unknown;
+}
+
+// Normalized shape used throughout the app
 export interface PunchStatus {
   isPunchedIn: boolean;
   currentPunch: {
@@ -133,9 +148,22 @@ export async function fetchPunchStatus(): Promise<PunchStatus> {
   const res = await fetch(`${API_BASE_URL}/api/attendance/status`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data?.message ?? `Failed to fetch punch status (${res.status})`);
-  return data as PunchStatus;
+  const data: PunchStatusRaw = await res.json();
+  if (!res.ok)
+    throw new Error(
+      (data as unknown as { message?: string })?.message ??
+        `Failed to fetch punch status (${res.status})`,
+    );
+  return {
+    isPunchedIn: data.punchedIn,
+    currentPunch: data.openPunch
+      ? {
+          id: data.openPunch.id,
+          punchIn: data.openPunch.punchIn,
+          punchOut: data.openPunch.punchOut,
+        }
+      : null,
+  };
 }
 
 /** GET /api/attendance/history */
