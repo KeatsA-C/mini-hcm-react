@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { UserPlus, LogIn, ChevronRight, CheckCircle2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { UserPlus, LogIn, ChevronRight, CheckCircle2, AlertCircle } from 'lucide-react';
 
 import InputField from '../InputField';
 import Button from '../Button';
+import { firebaseLogin } from '../../store/authStore';
 
 interface LoginProps {
   onSwitch: () => void;
@@ -10,11 +12,38 @@ interface LoginProps {
 }
 
 export default function Login({ onSwitch, successMessage }: LoginProps): React.ReactElement {
+  const navigate = useNavigate();
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
+  const [firebaseError, setFirebaseError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Partial<Record<'email' | 'password', string>>>({});
 
+  const validate = (): boolean => {
+    const next: typeof errors = {};
+
+    if (!email) next.email = 'Email is required';
+    else if (!/\S+@\S+\.\S+/.test(email)) next.email = 'Enter a valid email';
+    if (!password) next.password = 'Password is required';
+    else if (password.length < 8) next.password = 'Must be at least 8 characters';
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  };
   const handleLogin = async (): Promise<void> => {
-    await new Promise((r) => setTimeout(r, 2000));
+    if (!validate()) return;
+    setFirebaseError(null);
+    const result = await firebaseLogin({
+      email,
+      password,
+    });
+    if (result.success) {
+      navigate('/panel');
+    } else {
+      if (result.field) {
+        setErrors((e) => ({ ...e, [result.field!]: result.message }));
+      } else {
+        setFirebaseError(result.message ?? 'Login failed');
+      }
+    }
   };
 
   return (
@@ -34,6 +63,14 @@ export default function Login({ onSwitch, successMessage }: LoginProps): React.R
         </div>
       )}
 
+      {/* Firebase error label */}
+      {firebaseError && (
+        <div className="flex items-center gap-2 mb-5 px-3 py-2.5 rounded-md bg-red-500/10 border border-red-500/25">
+          <AlertCircle size={13} className="text-red-400 shrink-0" />
+          <p className="font-mono text-[11px] text-red-400">{firebaseError}</p>
+        </div>
+      )}
+
       {/* Fields */}
       <div className="flex flex-col gap-4 mb-6">
         <InputField
@@ -41,6 +78,7 @@ export default function Login({ onSwitch, successMessage }: LoginProps): React.R
           placeholder="you@company.com"
           value={email}
           onChange={setEmail}
+          error={errors.email}
         />
         <InputField
           mode="password"
@@ -48,6 +86,7 @@ export default function Login({ onSwitch, successMessage }: LoginProps): React.R
           placeholder="Enter your password"
           value={password}
           onChange={setPassword}
+          error={errors.password}
         />
       </div>
 

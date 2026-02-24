@@ -1,4 +1,4 @@
-export interface RoleOption {
+export interface positionOption {
   label: string;
   value: string;
 }
@@ -6,14 +6,14 @@ export interface RoleOption {
 export interface Department {
   label: string;
   value: string;
-  roles: RoleOption[];
+  positions: positionOption[];
 }
 
 export const DEPARTMENTS: Department[] = [
   {
     label: 'Software Development',
     value: 'software_development',
-    roles: [
+    positions: [
       { label: 'Frontend Developer', value: 'frontend_developer' },
       { label: 'Backend Developer', value: 'backend_developer' },
       { label: 'Full Stack Engineer', value: 'full_stack_engineer' },
@@ -24,7 +24,7 @@ export const DEPARTMENTS: Department[] = [
   {
     label: 'IT',
     value: 'it',
-    roles: [
+    positions: [
       { label: 'IT Support Specialist', value: 'it_support_specialist' },
       { label: 'Systems Administrator', value: 'systems_administrator' },
       { label: 'Network Engineer', value: 'network_engineer' },
@@ -34,7 +34,7 @@ export const DEPARTMENTS: Department[] = [
   {
     label: 'Human Resources',
     value: 'human_resources',
-    roles: [
+    positions: [
       { label: 'HR Specialist', value: 'hr_specialist' },
       { label: 'Technical Recruiter', value: 'technical_recruiter' },
       { label: 'Payroll Specialist', value: 'payroll_specialist' },
@@ -43,7 +43,7 @@ export const DEPARTMENTS: Department[] = [
   {
     label: 'Marketing',
     value: 'marketing',
-    roles: [
+    positions: [
       { label: 'SEO Specialist', value: 'seo_specialist' },
       { label: 'Content Writer', value: 'content_writer' },
       { label: 'Social Media Manager', value: 'social_media_manager' },
@@ -52,7 +52,7 @@ export const DEPARTMENTS: Department[] = [
   {
     label: 'Sales',
     value: 'sales',
-    roles: [
+    positions: [
       { label: 'Account Executive', value: 'account_executive' },
       { label: 'Sales Development Representative', value: 'sales_development_representative' },
       { label: 'Customer Success Specialist', value: 'customer_success_specialist' },

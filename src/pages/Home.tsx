@@ -1,17 +1,48 @@
-import Profile from '../components/profile/Profile';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { onAuthStateChanged } from 'firebase/auth';
+import { Container } from '../components/Container';
 import AuthCard from '../components/registration/AuthCard';
+import { auth } from '../config/firebase';
 
 export const Home = () => {
-  return (
-    <div className="flex items-center justify-center min-h-screen">
-      <AuthCard />
+  const navigate = useNavigate();
+  const [checking, setChecking] = useState(true);
 
-      {/* <Profile
-        name="John Doe"
-        role="Senior HR Specialist"
-        department="Human Resources"
-        timezone="Manila, PH"
-      /> */}
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        // User is authenticated, redirect to panel
+        navigate('/panel', { replace: true });
+      } else {
+        // User is not authenticated, show login page
+        setChecking(false);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [navigate]);
+
+  // Show loading message while checking authentication
+  if (checking) {
+    return (
+      <div>
+        <Container>
+          <div className="flex items-center justify-center">
+            <p className="font-mono text-[13px] text-neutral-400 tracking-wide">
+              Verifying Auth....
+            </p>
+          </div>
+        </Container>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <Container>
+        <AuthCard />
+      </Container>
     </div>
   );
 };

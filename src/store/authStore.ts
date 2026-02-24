@@ -14,7 +14,7 @@ export interface RegisterPayload {
   email: string;
   password: string;
   department: string;
-  role: string;
+  position: string;
   timezone: string;
 }
 
@@ -35,6 +35,21 @@ interface FirebaseAuthResult {
   token?: string;
   field?: 'email' | 'password';
   message?: string;
+}
+
+export interface UserDetails {
+  uid: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  department: string;
+  position: string;
+  timezone: string;
+  role?: string;
+  schedule?: { start: string; end: string };
+  createdAt?: string;
+  message?: string;
+  error?: string;
 }
 
 export async function registerEmail({
@@ -97,12 +112,10 @@ export async function completeRegistration(payload: RegisterPayload): Promise<Au
         lastName: payload.lastname,
         email: payload.email,
         department: payload.department,
-        role: payload.role,
+        position: payload.position,
         timezone: payload.timezone,
       }),
     });
-
-    console.log('Backend response status:', response);
 
     const data: { message?: string; error?: string } = await response.json();
 
@@ -128,7 +141,7 @@ export async function completeRegistration(payload: RegisterPayload): Promise<Au
   }
 }
 
-export async function login(payload: LoginPayload) {
+export async function firebaseLogin(payload: LoginPayload) {
   try {
     const cred = await signInWithEmailAndPassword(auth, payload.email, payload.password);
     const token = await cred.user.getIdToken();
@@ -147,5 +160,36 @@ export async function login(payload: LoginPayload) {
       emailAlreadyExisted: true,
       message: 'Sign-in failed unexpectedly.',
     };
+  }
+}
+
+export async function fetchUserDetails() {
+  try {
+    const token = await auth.currentUser?.getIdToken();
+
+    if (!token) {
+      throw new Error('No authenticated user found.');
+    }
+
+    const response = await fetch(`${API_BASE_URL}/api/user/details`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data: UserDetails = await response.json();
+
+    return data as UserDetails;
+  } catch (error) {
+    console.error('Failed to fetch user details:', error);
+
+    // Sign out if the token is invalid or the request fails completely
+    await signOut(auth).catch(() => {});
   }
 }

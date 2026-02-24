@@ -1,39 +1,167 @@
-import { useState } from 'react';
-import { Clock, Calendar, Building2, MapPin } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Clock, Calendar, Building2, MapPin, LogOut, ShieldCheck, AlertCircle } from 'lucide-react';
+import { signOut } from 'firebase/auth';
 import Avatar from './Avatar';
 import PunchButton, { type PunchState } from './PunchButton';
+import Button from '../Button';
+import { auth } from '../../config/firebase';
+import { ProfileSkeleton } from './ProfileSkeleton';
+import { fetchUserDetails as fetchUserDetailsFromStore } from '../../store/authStore';
+import { DEPARTMENTS } from '../../data/departments';
+import {
+  punchIn as apiPunchIn,
+  punchOut as apiPunchOut,
+  fetchPunchStatus,
+  fetchDailySummary,
+  type PunchMetrics,
+} from '../../store/attendanceStore';
 
-interface ProfileProps {
-  name?: string;
+interface UserData {
+  name: string;
+  position: string;
+  department: string;
+  timezone: string;
   role?: string;
-  department?: string;
-  timezone?: string;
   employeeId?: string;
   avatarSrc?: string;
 }
 
-export default function Profile({
-  name = 'John Doe',
-  role = 'Senior HR Specialist',
-  department = 'Human Resources',
-  timezone = 'Manila, PH',
+function fmtTime(iso: string, timezone?: string): string {
+  return new Date(iso).toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: timezone,
+  });
+}
 
-  avatarSrc,
-}: ProfileProps): React.ReactElement {
+export default function Profile(): React.ReactElement {
+  const navigate = useNavigate();
   const [punchState, setPunchState] = useState<PunchState>('in');
   const [punchLog, setPunchLog] = useState<string>('Not yet punched today');
+  const [punchError, setPunchError] = useState<string | null>(null);
+  const [todayMetrics, setTodayMetrics] = useState<PunchMetrics | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [userData, setUserData] = useState<UserData | null>(null);
+  const [timezone, setTimezone] = useState<string | undefined>(undefined);
 
-  const handlePunch = async (): Promise<void> => {
-    await new Promise((r) => setTimeout(r, 1800));
-    const now = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    if (punchState === 'in') {
-      setPunchLog(`Punched in at ${now}`);
-      setPunchState('out');
-    } else {
-      setPunchLog(`Punched out at ${now}`);
-      setPunchState('in');
+  const fetchUserDetails = async (): Promise<void> => {
+    const timeoutId = setTimeout(() => {
+      setError('Request timeout. Please try again.');
+      setLoading(false);
+    }, 10000);
+
+    try {
+      const user = auth.currentUser;
+      if (!user) {
+        clearTimeout(timeoutId);
+        setError('User not authenticated');
+        setLoading(false);
+        return;
+      }
+
+      const data = await fetchUserDetailsFromStore();
+      clearTimeout(timeoutId);
+
+      if (!data) {
+        throw new Error('Failed to fetch user details');
+      }
+
+      const tz = data.timezone || undefined;
+      setTimezone(tz);
+
+      const deptEntry = DEPARTMENTS.find((d) => d.value === data.department);
+      const deptLabel = deptEntry?.label ?? data.department ?? 'N/A';
+      const posLabel =
+        deptEntry?.positions.find((p) => p.value === data.position)?.label ??
+        data.position ??
+        'Employee';
+
+      setUserData({
+        name: `${data.firstName} ${data.lastName}` || 'User',
+        position: posLabel,
+        department: deptLabel,
+        timezone: data.timezone || 'UTC',
+        role: data.role,
+        employeeId: data.email,
+        avatarSrc: undefined,
+      });
+      setLoading(false);
+    } catch (err) {
+      clearTimeout(timeoutId);
+      setError('Failed to load user profile. Please try again.');
+      setLoading(false);
+      console.error('Error fetching user details:', err);
     }
   };
+
+  const initializePunchState = async (tz?: string): Promise<void> => {
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const status = await fetchPunchStatus();
+
+      if (status.isPunchedIn && status.currentPunch) {
+        setPunchState('out');
+        setPunchLog(`Punched in at ${fmtTime(status.currentPunch.punchIn, tz)}`);
+      }
+
+      try {
+        const summary = await fetchDailySummary(today);
+        setTodayMetrics({
+          workDate: summary.workDate,
+          regularHours: summary.regularHours,
+          overtimeHours: summary.overtimeHours,
+          nightDiffHours: summary.nightDiffHours,
+          lateMinutes: summary.lateMinutes,
+          undertimeMinutes: summary.undertimeMinutes,
+          totalWorkedHours: summary.totalWorkedHours,
+        });
+      } catch {}
+    } catch {}
+  };
+
+  useEffect(() => {
+    fetchUserDetails();
+  }, []);
+
+  useEffect(() => {
+    if (!loading && !error) {
+      initializePunchState(timezone);
+    }
+  }, [loading]);
+
+  const handlePunch = async (): Promise<void> => {
+    setPunchError(null);
+    try {
+      if (punchState === 'in') {
+        const res = await apiPunchIn();
+        setPunchLog(`Punched in at ${fmtTime(res.punchIn, timezone)}`);
+        setPunchState('out');
+      } else {
+        const res = await apiPunchOut();
+        setPunchLog(`Punched out at ${fmtTime(res.punchOut, timezone)}`);
+        setPunchState('in');
+        setTodayMetrics(res.metrics);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Punch failed. Please try again.';
+      setPunchError(msg);
+    }
+  };
+
+  const handleLogout = async (): Promise<void> => {
+    try {
+      await signOut(auth);
+      navigate('/');
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  };
+
+  if (loading || error || !userData) {
+    return <ProfileSkeleton errorMessage={error} />;
+  }
 
   const today = new Date().toLocaleDateString('en-US', {
     weekday: 'short',
@@ -41,16 +169,15 @@ export default function Profile({
     day: 'numeric',
   });
 
+  const isPrivileged = userData.role === 'admin' || userData.role === 'superadmin';
+
   return (
     <div className="relative w-full max-w-[360px]">
-      {/* Card glow */}
       <div className="absolute -inset-px rounded-2xl bg-gradient-to-b from-white/[0.05] to-transparent pointer-events-none" />
 
-      <div className="relative rounded-2xl border border-white/[0.08] bg-[#1c1c1c] overflow-hidden shadow-[0_32px_64px_rgba(0,0,0,0.6)]">
-        {/* Top accent */}
+      <div className="relative rounded-2xl border border-white/[0.08] bg-[#1c1c1c] overflow-hidden shadow-[0_8px_16px_rgba(175,175,175,0.25)]">
         <div className="h-[2px] w-full bg-gradient-to-r from-transparent via-blue-500/50 to-transparent" />
 
-        {/* Header band */}
         <div className="relative h-24 bg-gradient-to-br from-blue-500/[0.07] via-transparent to-purple-500/[0.05]">
           <div
             className="absolute inset-0 opacity-[0.03]"
@@ -61,41 +188,115 @@ export default function Profile({
           />
         </div>
 
-        {/* Avatar — overlaps header */}
         <div className="flex justify-center -mt-11 mb-4 relative z-10">
-          <Avatar src={avatarSrc} name={name} size={88} />
+          <Avatar src={userData.avatarSrc} name={userData.name} size={88} />
         </div>
 
-        {/* Identity */}
         <div className="flex flex-col items-center gap-1 px-6 mb-5">
           <h1 className="font-sans text-[18px] font-bold text-neutral-100 tracking-tight">
-            {name}
+            {userData.name}
           </h1>
-          <p className="font-mono text-[12px] text-neutral-500 tracking-wide">{role}</p>
+          <p className="font-mono text-[12px] text-neutral-500 tracking-wide">
+            {userData.position}
+          </p>
 
-          {/* Tags */}
           <div className="flex items-center gap-2 mt-2 flex-wrap justify-center">
             <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/[0.08] border border-blue-500/20 font-mono text-[10px] text-blue-400 tracking-wide">
-              <Building2 size={9} /> {department}
+              <Building2 size={9} /> {userData.department}
             </span>
             <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/[0.04] border border-white/[0.07] font-mono text-[10px] text-neutral-500 tracking-wide">
-              <MapPin size={9} /> {timezone}
+              <MapPin size={9} /> {userData.timezone}
             </span>
           </div>
         </div>
 
-        {/* Divider */}
         <div className="mx-6 h-px bg-white/[0.05] mb-5" />
 
-        {/* Punch Button */}
-        <div className="flex flex-col items-center px-6 mb-5">
+        <div className="flex flex-col items-center gap-3 px-6 mb-5">
           <PunchButton state={punchState} onToggle={handlePunch} />
+
+          {punchError && (
+            <div className="flex items-center gap-2 w-full px-3 py-2 rounded-md bg-red-500/10 border border-red-500/25">
+              <AlertCircle size={12} className="text-red-400 shrink-0" />
+              <p className="font-mono text-[11px] text-red-400 leading-snug">{punchError}</p>
+            </div>
+          )}
+
+          {isPrivileged && (
+            <Button mode="blue" onClick={() => navigate('/admin')}>
+              <ShieldCheck size={14} />
+              Admin Dashboard
+            </Button>
+          )}
+          <Button mode="red" onClick={handleLogout}>
+            <LogOut size={14} />
+            Logout
+          </Button>
         </div>
 
-        {/* Divider */}
+        {todayMetrics && (
+          <>
+            <div className="mx-6 h-px bg-white/[0.05] mb-4" />
+            <div className="px-6 mb-5">
+              <p className="font-mono text-[9px] text-neutral-600 tracking-widest uppercase mb-3">
+                Today's Summary
+              </p>
+              <div className="grid grid-cols-3 gap-x-4 gap-y-3">
+                {[
+                  {
+                    label: 'Regular',
+                    value: `${todayMetrics.regularHours.toFixed(2)}h`,
+                    color: 'text-green-400',
+                  },
+                  {
+                    label: 'OT',
+                    value:
+                      todayMetrics.overtimeHours > 0
+                        ? `${todayMetrics.overtimeHours.toFixed(2)}h`
+                        : '—',
+                    color: todayMetrics.overtimeHours > 0 ? 'text-amber-400' : 'text-neutral-700',
+                  },
+                  {
+                    label: 'Night Diff',
+                    value:
+                      todayMetrics.nightDiffHours > 0
+                        ? `${todayMetrics.nightDiffHours.toFixed(2)}h`
+                        : '—',
+                    color: todayMetrics.nightDiffHours > 0 ? 'text-purple-400' : 'text-neutral-700',
+                  },
+                  {
+                    label: 'Late',
+                    value: todayMetrics.lateMinutes > 0 ? `${todayMetrics.lateMinutes}m` : '—',
+                    color: todayMetrics.lateMinutes > 0 ? 'text-red-400' : 'text-neutral-700',
+                  },
+                  {
+                    label: 'Undertime',
+                    value:
+                      todayMetrics.undertimeMinutes > 0 ? `${todayMetrics.undertimeMinutes}m` : '—',
+                    color: todayMetrics.undertimeMinutes > 0 ? 'text-red-400' : 'text-neutral-700',
+                  },
+                  {
+                    label: 'Total',
+                    value: `${todayMetrics.totalWorkedHours.toFixed(2)}h`,
+                    color: 'text-blue-400',
+                  },
+                ].map((m) => (
+                  <div key={m.label} className="flex flex-col gap-0.5">
+                    <span className="font-mono text-[9px] text-neutral-600 tracking-widest uppercase">
+                      {m.label}
+                    </span>
+                    <span className={`font-mono text-[12px] font-semibold ${m.color}`}>
+                      {m.value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
         <div className="mx-6 h-px bg-white/[0.05] mb-4" />
 
-        {/* Footer meta */}
         <div className="flex items-center justify-between px-6 pb-5">
           <div className="flex items-center gap-1.5 font-mono text-[10px] text-neutral-700">
             <Calendar size={11} />

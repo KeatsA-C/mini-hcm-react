@@ -18,7 +18,7 @@ export function Register({ onSwitch, onSuccess }: RegisterProps): React.ReactEle
   const [password, setPassword] = useState<string>('');
   const [confirmPassword, setConfirmPassword] = useState<string>('');
   const [department, setDepartment] = useState<string>('');
-  const [role, setRole] = useState<string>('');
+  const [position, setposition] = useState<string>('');
   const [timezone, setTimezone] = useState<string>('');
   const [errors, setErrors] = useState<
     Partial<
@@ -29,7 +29,7 @@ export function Register({ onSwitch, onSuccess }: RegisterProps): React.ReactEle
         | 'password'
         | 'confirmPassword'
         | 'department'
-        | 'role'
+        | 'position'
         | 'timezone',
         string
       >
@@ -38,7 +38,7 @@ export function Register({ onSwitch, onSuccess }: RegisterProps): React.ReactEle
   const [firebaseError, setFirebaseError] = useState<string | null>(null);
 
   const selectedDept = DEPARTMENTS.find((d) => d.value === department);
-  const roleOptions = selectedDept ? selectedDept.roles : [];
+  const positionOptions = selectedDept ? selectedDept.positions : [];
 
   const validate = (): boolean => {
     const next: typeof errors = {};
@@ -51,7 +51,7 @@ export function Register({ onSwitch, onSuccess }: RegisterProps): React.ReactEle
     if (!confirmPassword) next.confirmPassword = 'Please confirm your password';
     else if (confirmPassword !== password) next.confirmPassword = 'Passwords do not match';
     if (!department) next.department = 'Department is required';
-    if (!role) next.role = 'Role is required';
+    if (!position) next.position = 'position is required';
     if (!timezone) next.timezone = 'Timezone is required';
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -66,7 +66,7 @@ export function Register({ onSwitch, onSuccess }: RegisterProps): React.ReactEle
       email,
       password,
       department,
-      role,
+      position,
       timezone,
     });
     if (result.success) {
@@ -135,24 +135,24 @@ export function Register({ onSwitch, onSuccess }: RegisterProps): React.ReactEle
             value={department}
             onChange={(v) => {
               setDepartment(v);
-              setRole('');
-              setErrors((e) => ({ ...e, department: undefined, role: undefined }));
+              setposition('');
+              setErrors((e) => ({ ...e, department: undefined, position: undefined }));
             }}
             options={DEPARTMENTS.map((d) => ({ label: d.label, value: d.value }))}
             error={errors.department}
           />
           <InputField
             mode="dropdown"
-            label="Role"
-            placeholder={department ? 'Select role' : 'Choose dept first'}
-            value={role}
+            label="position"
+            placeholder={department ? 'Select position' : 'Choose dept first'}
+            value={position}
             onChange={(v) => {
-              setRole(v);
-              setErrors((e) => ({ ...e, role: undefined }));
+              setposition(v);
+              setErrors((e) => ({ ...e, position: undefined }));
             }}
-            options={roleOptions}
+            options={positionOptions}
             disabled={!department}
-            error={errors.role}
+            error={errors.position}
           />
         </div>
         <InputField
