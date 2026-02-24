@@ -11,8 +11,9 @@ export const Home = () => {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
+      unsubscribe();
       if (user) {
-        // User is authenticated, redirect to panel
+        // User is already authenticated, redirect to panel
         navigate('/panel', { replace: true });
       } else {
         // User is not authenticated, show login page

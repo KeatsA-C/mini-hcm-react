@@ -104,6 +104,8 @@ export default function Profile(): React.ReactElement {
       if (status.isPunchedIn && status.currentPunch) {
         setPunchState('out');
         setPunchLog(`Punched in at ${fmtTime(status.currentPunch.punchIn, tz)}`);
+      } else {
+        setPunchState('in');
       }
 
       try {
@@ -117,8 +119,12 @@ export default function Profile(): React.ReactElement {
           undertimeMinutes: summary.undertimeMinutes,
           totalWorkedHours: summary.totalWorkedHours,
         });
-      } catch {}
-    } catch {}
+      } catch (summaryErr) {
+        console.warn('[initializePunchState] Failed to load daily summary:', summaryErr);
+      }
+    } catch (statusErr) {
+      console.error('[initializePunchState] Failed to fetch punch status:', statusErr);
+    }
   };
 
   useEffect(() => {
