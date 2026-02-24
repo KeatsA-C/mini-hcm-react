@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -30,6 +30,7 @@ import {
   updatePunch,
   grantAdmin,
   revokeAdmin,
+  assignSchedule,
   type AdminDailyEntry,
   type AdminWeeklyEntry,
   type UserSummary,
@@ -68,16 +69,45 @@ function fmtMin(m: number) {
   return h > 0 ? `${h}h ${min}m` : `${min}m`;
 }
 
-function toUTCHHMM(iso: string): string {
-  const d = new Date(iso);
-  return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
+function toZonedHHMM(iso: string, timezone?: string): string {
+  return new Date(iso).toLocaleTimeString('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: timezone || 'UTC',
+  });
 }
 
-function rebuildISO(originalISO: string, newHHMM: string): string {
-  const base = new Date(originalISO);
+/**
+ * Rebuild a UTC ISO string by replacing the time portion with newHHMM
+ * expressed in the given timezone. Without a timezone the old UTC-direct
+ * behaviour is preserved (fallback only).
+ */
+function rebuildISO(originalISO: string, newHHMM: string, timezone?: string): string {
   const [h, m] = newHHMM.split(':').map(Number);
-  base.setUTCHours(h, m, 0, 0);
-  return base.toISOString();
+  if (!timezone) {
+    const base = new Date(originalISO);
+    base.setUTCHours(h, m, 0, 0);
+    return base.toISOString();
+  }
+  // Get the date portion as seen in the target timezone (YYYY-MM-DD)
+  const localDate = new Date(originalISO).toLocaleDateString('en-CA', { timeZone: timezone });
+  // Build a candidate by naively treating h:m as UTC
+  const candidate = new Date(
+    `${localDate}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00.000Z`,
+  );
+  // Determine what hour:min the timezone actually shows for that candidate
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(candidate);
+  const tzH = parseInt(parts.find((p) => p.type === 'hour')!.value.replace('24', '0'));
+  const tzM = parseInt(parts.find((p) => p.type === 'minute')!.value);
+  // Shift candidate so that timezone shows the intended h:m
+  const diffMs = ((h - tzH) * 60 + (m - tzM)) * 60 * 1000;
+  return new Date(candidate.getTime() + diffMs).toISOString();
 }
 
 function getWeekDates(ref: Date): { start: string; end: string } {
@@ -173,6 +203,13 @@ export default function AdminDashboard() {
   const [editPunchOut, setEditPunchOut] = useState('');
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+
+  const [scheduleEditUID, setScheduleEditUID] = useState<string | null>(null);
+  const [schedEditStart, setSchedEditStart] = useState('');
+  const [schedEditEnd, setSchedEditEnd] = useState('');
+  const [schedEditTimezone, setSchedEditTimezone] = useState('');
+  const [schedSaving, setSchedSaving] = useState(false);
+  const [schedError, setSchedError] = useState<string | null>(null);
 
   const loadDailyReport = useCallback(async (date: string) => {
     setDailyLoading(true);
@@ -273,15 +310,17 @@ export default function AdminDashboard() {
   const dailyDisplayRows: DailyDisplayRow[] = [
     ...dailyReport.map((r): DailyDisplayRow => {
       const allPunchedOut = r.punches.every((p) => p.punchOut !== null);
-      const shift = allUsers.find((u) => u.uid === r.uid)?.schedule;
+      const empUser = allUsers.find((u) => u.uid === r.uid);
+      const shift = empUser?.schedule;
+      const empTZ = empUser?.timezone;
       const latestPunch = r.punches[r.punches.length - 1];
       return {
         uid: r.uid,
         name: `${r.employee.firstName} ${r.employee.lastName}`,
         department: r.employee.department,
         shift: shift ? `${shift.start}–${shift.end}` : '—',
-        timeIn: latestPunch?.punchIn ? toUTCHHMM(latestPunch.punchIn) : null,
-        timeOut: latestPunch?.punchOut ? toUTCHHMM(latestPunch.punchOut) : null,
+        timeIn: latestPunch?.punchIn ? toZonedHHMM(latestPunch.punchIn, empTZ) : null,
+        timeOut: latestPunch?.punchOut ? toZonedHHMM(latestPunch.punchOut, empTZ) : null,
         regular: r.regularHours,
         ot: r.overtimeHours,
         nd: r.nightDiffHours,
@@ -325,21 +364,23 @@ export default function AdminDashboard() {
   // ── Punch edit handlers ───────────────────────────────────────────────────
 
   function startEdit(record: AttendanceRecord) {
+    const empTZ = allUsers.find((u) => u.uid === record.uid)?.timezone;
     setEditingId(record.id);
-    setEditPunchIn(toUTCHHMM(record.punchIn));
-    setEditPunchOut(record.punchOut ? toUTCHHMM(record.punchOut) : '');
+    setEditPunchIn(toZonedHHMM(record.punchIn, empTZ));
+    setEditPunchOut(record.punchOut ? toZonedHHMM(record.punchOut, empTZ) : '');
     setEditError(null);
   }
 
   async function saveEdit(record: AttendanceRecord) {
+    const empTZ = allUsers.find((u) => u.uid === record.uid)?.timezone;
     setEditSaving(true);
     setEditError(null);
     try {
       const payload: { punchIn?: string; punchOut?: string } = {
-        punchIn: rebuildISO(record.punchIn, editPunchIn),
+        punchIn: rebuildISO(record.punchIn, editPunchIn, empTZ),
       };
       if (editPunchOut && record.punchOut) {
-        payload.punchOut = rebuildISO(record.punchOut, editPunchOut);
+        payload.punchOut = rebuildISO(record.punchOut, editPunchOut, empTZ);
       }
       await updatePunch(record.id, payload);
       setEditingId(null);
@@ -390,6 +431,53 @@ export default function AdminDashboard() {
     { key: 'punches', label: 'Punch Logs' },
     { key: 'users', label: 'Users' },
   ];
+
+  // ── Schedule edit ─────────────────────────────────────────────────────────
+
+  function startSchedEdit(u: UserSummary) {
+    setScheduleEditUID(u.uid);
+    setSchedEditStart(u.schedule?.start ?? '');
+    setSchedEditEnd(u.schedule?.end ?? '');
+    setSchedEditTimezone(u.timezone ?? '');
+    setSchedError(null);
+  }
+
+  async function saveSchedule(u: UserSummary) {
+    setSchedSaving(true);
+    setSchedError(null);
+    try {
+      const payload: { schedule?: { start: string; end: string }; timezone?: string } = {};
+      if (schedEditStart && schedEditEnd) {
+        payload.schedule = { start: schedEditStart, end: schedEditEnd };
+      }
+      if (schedEditTimezone.trim()) {
+        payload.timezone = schedEditTimezone.trim();
+      }
+      if (!payload.schedule && !payload.timezone) {
+        setSchedError('Provide at least a schedule or timezone.');
+        setSchedSaving(false);
+        return;
+      }
+      const updated = await assignSchedule(u.uid, payload);
+      setAllUsers((prev) =>
+        prev.map((usr) =>
+          usr.uid === u.uid
+            ? {
+                ...usr,
+                schedule: updated.schedule,
+                timezone: updated.timezone,
+                updatedAt: updated.updatedAt,
+              }
+            : usr,
+        ),
+      );
+      setScheduleEditUID(null);
+    } catch (err) {
+      setSchedError(err instanceof Error ? err.message : 'Save failed');
+    } finally {
+      setSchedSaving(false);
+    }
+  }
 
   // ── Grant / Revoke admin ──────────────────────────────────────────────────
 
@@ -907,8 +995,8 @@ export default function AdminDashboard() {
                     <tr className="border-b border-white/[0.06]">
                       <Th>Employee</Th>
                       <Th>Date</Th>
-                      <Th>Punch In (UTC)</Th>
-                      <Th>Punch Out (UTC)</Th>
+                      <Th>Punch In (Local)</Th>
+                      <Th>Punch Out (Local)</Th>
                       <Th>Edited</Th>
                       <Th>Action</Th>
                     </tr>
@@ -925,6 +1013,7 @@ export default function AdminDashboard() {
                     ) : (
                       userPunches.map((row, idx) => {
                         const isEditing = editingId === row.id;
+                        const empTZ = allUsers.find((u) => u.uid === row.uid)?.timezone;
                         return (
                           <tr
                             key={row.id}
@@ -963,7 +1052,7 @@ export default function AdminDashboard() {
                                 />
                               ) : (
                                 <span className="font-mono text-[12px] text-neutral-300">
-                                  {toUTCHHMM(row.punchIn)}
+                                  {toZonedHHMM(row.punchIn, empTZ)}
                                 </span>
                               )}
                             </td>
@@ -987,7 +1076,7 @@ export default function AdminDashboard() {
                                 <span
                                   className={`font-mono text-[12px] ${row.punchOut ? 'text-neutral-300' : 'text-neutral-700'}`}
                                 >
-                                  {row.punchOut ? toUTCHHMM(row.punchOut) : '—'}
+                                  {row.punchOut ? toZonedHHMM(row.punchOut, empTZ) : '—'}
                                 </span>
                               )}
                             </td>
@@ -1053,9 +1142,9 @@ export default function AdminDashboard() {
           {/* ══ Users ══ */}
           {tab === 'users' && (
             <div className="rounded-xl border border-white/[0.08] bg-[#1c1c1c] overflow-hidden">
-              {roleError && (
+              {(roleError || schedError) && (
                 <div className="px-4 py-2 border-b border-white/[0.06] bg-red-500/[0.06]">
-                  <p className="font-mono text-[11px] text-red-400">{roleError}</p>
+                  <p className="font-mono text-[11px] text-red-400">{roleError ?? schedError}</p>
                 </div>
               )}
               <div className="overflow-x-auto">
@@ -1066,17 +1155,15 @@ export default function AdminDashboard() {
                       <Th>Department</Th>
                       <Th>Position</Th>
                       <Th>Role</Th>
-                      {currentRole === 'superadmin' && <Th>Actions</Th>}
+                      <Th>Schedule</Th>
+                      <Th>Actions</Th>
                     </tr>
                   </thead>
                   <tbody>
                     {usersLoading ? (
-                      <LoadingRow cols={currentRole === 'superadmin' ? 5 : 4} />
+                      <LoadingRow cols={6} />
                     ) : allUsers.length === 0 ? (
-                      <EmptyRow
-                        cols={currentRole === 'superadmin' ? 5 : 4}
-                        message="No users found."
-                      />
+                      <EmptyRow cols={6} message="No users found." />
                     ) : (
                       allUsers
                         .filter((u) => {
@@ -1102,63 +1189,171 @@ export default function AdminDashboard() {
                                 ? 'text-blue-400 bg-blue-500/10 border-blue-500/20'
                                 : 'text-neutral-500 bg-white/[0.03] border-white/[0.08]';
                           const isToggling = !!roleToggling[u.uid];
+                          const isSchedEditing = scheduleEditUID === u.uid;
                           return (
-                            <tr
-                              key={u.uid}
-                              className={`border-b border-white/[0.04] transition-colors hover:bg-white/[0.02] ${
-                                idx % 2 === 0 ? '' : 'bg-white/[0.01]'
-                              }`}
-                            >
-                              <td className="px-4 py-3.5">
-                                <p className="font-mono text-[12px] text-neutral-200 whitespace-nowrap">
-                                  {u.firstName} {u.lastName}
-                                </p>
-                                <p className="font-mono text-[10px] text-neutral-600 mt-0.5">
-                                  {u.email}
-                                </p>
-                              </td>
-                              <Td muted>{deptLabel}</Td>
-                              <Td muted>{posLabel}</Td>
-                              <td className="px-4 py-3.5">
-                                <span
-                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border font-mono text-[10px] tracking-wide capitalize ${roleBadge}`}
-                                >
-                                  {u.role}
-                                </span>
-                              </td>
-                              {currentRole === 'superadmin' && (
+                            <Fragment key={u.uid}>
+                              <tr
+                                className={`border-b border-white/[0.04] transition-colors hover:bg-white/[0.02] ${
+                                  idx % 2 === 0 ? '' : 'bg-white/[0.01]'
+                                }`}
+                              >
                                 <td className="px-4 py-3.5">
-                                  {u.role === 'superadmin' ? (
-                                    <span className="font-mono text-[10px] text-neutral-700">
+                                  <p className="font-mono text-[12px] text-neutral-200 whitespace-nowrap">
+                                    {u.firstName} {u.lastName}
+                                  </p>
+                                  <p className="font-mono text-[10px] text-neutral-600 mt-0.5">
+                                    {u.email}
+                                  </p>
+                                </td>
+                                <Td muted>{deptLabel}</Td>
+                                <Td muted>{posLabel}</Td>
+                                <td className="px-4 py-3.5">
+                                  <span
+                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border font-mono text-[10px] tracking-wide capitalize ${roleBadge}`}
+                                  >
+                                    {u.role}
+                                  </span>
+                                </td>
+                                {/* Schedule column */}
+                                <td className="px-4 py-3.5">
+                                  {u.schedule?.start && u.schedule?.end ? (
+                                    <div className="flex flex-col gap-0.5">
+                                      <span className="font-mono text-[11px] text-neutral-300">
+                                        {u.schedule.start}–{u.schedule.end}
+                                      </span>
+                                      <span className="font-mono text-[10px] text-neutral-600">
+                                        {u.timezone || '—'}
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <span className="font-mono text-[11px] text-neutral-700">
                                       —
                                     </span>
-                                  ) : (
-                                    <button
-                                      onClick={() => handleRoleToggle(u)}
-                                      disabled={isToggling}
-                                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border font-mono text-[10px] tracking-wide transition-all duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
-                                        u.role === 'admin'
-                                          ? 'bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20'
-                                          : 'bg-blue-500/10 border-blue-500/20 text-blue-400 hover:bg-blue-500/20'
-                                      }`}
-                                    >
-                                      {isToggling ? (
-                                        <Loader2 size={10} className="animate-spin" />
-                                      ) : u.role === 'admin' ? (
-                                        <ShieldOff size={10} />
-                                      ) : (
-                                        <ShieldCheck size={10} />
-                                      )}
-                                      {isToggling
-                                        ? 'Saving…'
-                                        : u.role === 'admin'
-                                          ? 'Revoke Admin'
-                                          : 'Grant Admin'}
-                                    </button>
                                   )}
                                 </td>
+                                {/* Actions column */}
+                                <td className="px-4 py-3.5">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    {/* Edit Schedule – available to all admins */}
+                                    <button
+                                      onClick={() =>
+                                        isSchedEditing
+                                          ? setScheduleEditUID(null)
+                                          : startSchedEdit(u)
+                                      }
+                                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border font-mono text-[10px] tracking-wide transition-all duration-150 cursor-pointer ${
+                                        isSchedEditing
+                                          ? 'bg-white/[0.06] border-white/20 text-neutral-300'
+                                          : 'bg-white/[0.03] border-white/[0.08] text-neutral-500 hover:text-neutral-300 hover:border-white/20 hover:bg-white/[0.06]'
+                                      }`}
+                                    >
+                                      <Clock size={10} />
+                                      {isSchedEditing ? 'Cancel' : 'Schedule'}
+                                    </button>
+                                    {/* Grant/Revoke Admin – superadmin only */}
+                                    {currentRole === 'superadmin' && u.role !== 'superadmin' && (
+                                      <button
+                                        onClick={() => handleRoleToggle(u)}
+                                        disabled={isToggling}
+                                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border font-mono text-[10px] tracking-wide transition-all duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                                          u.role === 'admin'
+                                            ? 'bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20'
+                                            : 'bg-blue-500/10 border-blue-500/20 text-blue-400 hover:bg-blue-500/20'
+                                        }`}
+                                      >
+                                        {isToggling ? (
+                                          <Loader2 size={10} className="animate-spin" />
+                                        ) : u.role === 'admin' ? (
+                                          <ShieldOff size={10} />
+                                        ) : (
+                                          <ShieldCheck size={10} />
+                                        )}
+                                        {isToggling
+                                          ? 'Saving…'
+                                          : u.role === 'admin'
+                                            ? 'Revoke Admin'
+                                            : 'Grant Admin'}
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                              {/* Inline schedule editor */}
+                              {isSchedEditing && (
+                                <tr
+                                  key={`${u.uid}-sched-edit`}
+                                  className="border-b border-white/[0.04] bg-blue-500/[0.03]"
+                                >
+                                  <td colSpan={6} className="px-4 py-4">
+                                    <div className="flex flex-wrap items-end gap-4">
+                                      <div className="flex flex-col gap-1">
+                                        <label className="font-mono text-[9px] text-neutral-600 tracking-widest uppercase">
+                                          Shift Start (HH:MM)
+                                        </label>
+                                        <input
+                                          type="time"
+                                          value={schedEditStart}
+                                          onChange={(e) => setSchedEditStart(e.target.value)}
+                                          className="font-mono text-[12px] text-neutral-200 bg-white/[0.05] border border-blue-500/40 rounded px-2 py-1 outline-none focus:border-blue-500/70 transition-colors w-32"
+                                        />
+                                      </div>
+                                      <div className="flex flex-col gap-1">
+                                        <label className="font-mono text-[9px] text-neutral-600 tracking-widest uppercase">
+                                          Shift End (HH:MM)
+                                        </label>
+                                        <input
+                                          type="time"
+                                          value={schedEditEnd}
+                                          onChange={(e) => setSchedEditEnd(e.target.value)}
+                                          className="font-mono text-[12px] text-neutral-200 bg-white/[0.05] border border-blue-500/40 rounded px-2 py-1 outline-none focus:border-blue-500/70 transition-colors w-32"
+                                        />
+                                      </div>
+                                      <div className="flex flex-col gap-1">
+                                        <label className="font-mono text-[9px] text-neutral-600 tracking-widest uppercase">
+                                          Timezone (IANA)
+                                        </label>
+                                        <input
+                                          type="text"
+                                          value={schedEditTimezone}
+                                          onChange={(e) => setSchedEditTimezone(e.target.value)}
+                                          placeholder="e.g. Asia/Manila"
+                                          className="font-mono text-[12px] text-neutral-200 bg-white/[0.05] border border-blue-500/40 rounded px-2 py-1 outline-none focus:border-blue-500/70 transition-colors placeholder:text-neutral-700 w-44"
+                                        />
+                                      </div>
+                                      <div className="flex items-center gap-2 pb-0.5">
+                                        <button
+                                          onClick={() => saveSchedule(u)}
+                                          disabled={schedSaving}
+                                          className="flex items-center gap-1 px-2.5 py-1 rounded-md border border-green-500/30 bg-green-500/10 text-green-400 font-mono text-[10px] hover:bg-green-500/20 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-wait"
+                                        >
+                                          {schedSaving ? (
+                                            <Loader2 size={10} className="animate-spin" />
+                                          ) : (
+                                            <Save size={10} />
+                                          )}
+                                          Save
+                                        </button>
+                                        <button
+                                          onClick={() => {
+                                            setScheduleEditUID(null);
+                                            setSchedError(null);
+                                          }}
+                                          disabled={schedSaving}
+                                          className="flex items-center gap-1 px-2 py-1 rounded-md border border-white/[0.08] bg-white/[0.03] text-neutral-500 font-mono text-[10px] hover:text-neutral-300 hover:border-white/20 transition-all cursor-pointer disabled:opacity-50"
+                                        >
+                                          <X size={10} />
+                                        </button>
+                                      </div>
+                                      {schedError && (
+                                        <p className="font-mono text-[11px] text-red-400 self-end pb-0.5">
+                                          {schedError}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
                               )}
-                            </tr>
+                            </Fragment>
                           );
                         })
                     )}

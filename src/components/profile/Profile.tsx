@@ -28,9 +28,10 @@ interface UserData {
 }
 
 function fmtTime(iso: string, timezone?: string): string {
-  return new Date(iso).toLocaleTimeString('en-US', {
+  return new Date(iso).toLocaleTimeString('en-GB', {
     hour: '2-digit',
     minute: '2-digit',
+    hour12: false,
     timeZone: timezone,
   });
 }
@@ -45,6 +46,7 @@ export default function Profile(): React.ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [timezone, setTimezone] = useState<string | undefined>(undefined);
+  const [currentTime, setCurrentTime] = useState('');
 
   const fetchUserDetails = async (): Promise<void> => {
     const timeoutId = setTimeout(() => {
@@ -136,6 +138,23 @@ export default function Profile(): React.ReactElement {
       initializePunchState(timezone);
     }
   }, [loading]);
+
+  useEffect(() => {
+    function tick() {
+      setCurrentTime(
+        new Date().toLocaleTimeString('en-GB', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false,
+          timeZone: timezone,
+        }),
+      );
+    }
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [timezone]);
 
   const handlePunch = async (): Promise<void> => {
     setPunchError(null);
@@ -302,6 +321,21 @@ export default function Profile(): React.ReactElement {
         )}
 
         <div className="mx-6 h-px bg-white/[0.05] mb-4" />
+
+        {/* Live clock */}
+        {currentTime && (
+          <div className="flex items-center justify-center gap-2 mb-3 px-6">
+            <Clock size={13} className="text-blue-400/60" />
+            <span className="font-mono text-[15px] font-semibold text-neutral-200 tabular-nums tracking-wide">
+              {currentTime}
+            </span>
+            {userData?.timezone && (
+              <span className="font-mono text-[9px] text-neutral-600 tracking-widest uppercase">
+                {userData.timezone}
+              </span>
+            )}
+          </div>
+        )}
 
         <div className="flex items-center justify-between px-6 pb-5">
           <div className="flex items-center gap-1.5 font-mono text-[10px] text-neutral-700">

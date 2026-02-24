@@ -23,6 +23,27 @@ export interface UserSummary {
   role: string;
   schedule: { start: string; end: string };
   createdAt: string;
+  updatedAt?: string;
+}
+
+export interface AssignSchedulePayload {
+  schedule?: { start: string; end: string };
+  timezone?: string;
+}
+
+export interface AssignScheduleResponse {
+  message: string;
+  uid: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  department: string;
+  position: string;
+  timezone: string;
+  role: string;
+  schedule: { start: string; end: string };
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface AdminDailyEntry {
@@ -197,4 +218,23 @@ export async function revokeAdmin(uid: string): Promise<{ message: string }> {
   const data = await res.json();
   if (!res.ok) throw new Error(data?.message ?? `Failed to revoke admin (${res.status})`);
   return data as { message: string };
+}
+
+/** PUT /api/admin/schedule/:uid  (admin / superadmin) */
+export async function assignSchedule(
+  uid: string,
+  payload: AssignSchedulePayload,
+): Promise<AssignScheduleResponse> {
+  const token = await getToken();
+  const res = await fetch(`${API_BASE_URL}/api/admin/schedule/${uid}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.message ?? `Failed to assign schedule (${res.status})`);
+  return data as AssignScheduleResponse;
 }
