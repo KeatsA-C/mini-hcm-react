@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" width="64" height="64">
+  <defs>
+    <!-- Dark card background gradient -->
+    <linearGradient id="cardBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2a2a2a"/>
+      <stop offset="100%" stop-color="#1a1a1a"/>
+    </linearGradient>
+
+    <!-- Blue accent gradient (top line + glow) -->
+    <linearGradient id="blueAccent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#3b82f6" stop-opacity="0"/>
+      <stop offset="50%"  stop-color="#3b82f6" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#3b82f6" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- Avatar gradient -->
+    <linearGradient id="avatarGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"   stop-color="#3b82f6" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#a855f7" stop-opacity="0.15"/>
+    </linearGradient>
+
+    <!-- Green punch button gradient -->
+    <linearGradient id="punchGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"   stop-color="#22c55e" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#22c55e" stop-opacity="0.05"/>
+    </linearGradient>
+
+    <!-- Outer card glow -->
+    <filter id="cardGlow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.6"/>
+    </filter>
+
+    <!-- Blue glow for top line -->
+    <filter id="blueGlow" x="-50%" y="-500%" width="200%" height="1100%">
+      <feGaussianBlur stdDeviation="1.5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+
+    <!-- Green glow for punch ring -->
+    <filter id="greenGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+
+    <!-- Clip for card shape -->
+    <clipPath id="cardClip">
+      <rect x="4" y="4" width="56" height="56" rx="12"/>
+    </clipPath>
+  </defs>
+
+  <!-- ── CARD BASE ── -->
+  <rect x="4" y="4" width="56" height="56" rx="12" fill="url(#cardBg)" filter="url(#cardGlow)"/>
+
+  <!-- Card border -->
+  <rect x="4" y="4" width="56" height="56" rx="12" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+
+  <!-- Subtle dot grid inside card -->
+  <g clip-path="url(#cardClip)" opacity="0.04">
+    <pattern id="dots" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse">
+      <circle cx="1" cy="1" r="0.75" fill="white"/>
+    </pattern>
+    <rect x="4" y="4" width="56" height="56" fill="url(#dots)"/>
+  </g>
+
+  <!-- ── TOP BLUE ACCENT LINE ── -->
+  <rect x="4" y="4" width="56" height="2" rx="1" fill="url(#blueAccent)" filter="url(#blueGlow)" clip-path="url(#cardClip)"/>
+
+  <!-- ── HEADER BAND (subtle tint) ── -->
+  <rect x="4" y="4" width="56" height="22" fill="rgba(59,130,246,0.04)" clip-path="url(#cardClip)"/>
+
+  <!-- ── AVATAR CIRCLE ── -->
+  <!-- Ring offset shadow -->
+  <circle cx="32" cy="26" r="11.5" fill="#1c1c1c" stroke="rgba(255,255,255,0.06)" stroke-width="2.5"/>
+  <!-- Avatar bg with blue-purple gradient -->
+  <circle cx="32" cy="26" r="10" fill="#242424"/>
+  <circle cx="32" cy="26" r="10" fill="url(#avatarGrad)"/>
+  <!-- Avatar border -->
+  <circle cx="32" cy="26" r="10" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="0.75"/>
+  <!-- Person icon — head -->
+  <circle cx="32" cy="23" r="3.2" fill="rgba(180,180,200,0.75)"/>
+  <!-- Person icon — shoulders -->
+  <path d="M24.5 33.5 C24.5 29.5 28 27.2 32 27.2 C36 27.2 39.5 29.5 39.5 33.5" fill="rgba(180,180,200,0.75)" clip-path="url(#cardClip)"/>
+  <!-- Online dot -->
+  <circle cx="40" cy="33.5" r="2.2" fill="#22c55e" stroke="#1c1c1c" stroke-width="1.2"/>
+
+  <!-- ── NAME BAR ── -->
+  <rect x="22" y="38" width="20" height="2.5" rx="1.25" fill="rgba(240,240,240,0.18)"/>
+  <!-- Role bar -->
+  <rect x="25" y="42.5" width="14" height="1.8" rx="0.9" fill="rgba(140,140,140,0.15)"/>
+
+  <!-- ── PUNCH BUTTON (bottom center, small circular) ── -->
+  <!-- Outer glow ring -->
+  <circle cx="32" cy="54" r="6.5" fill="none" stroke="rgba(34,197,94,0.18)" stroke-width="1.5" filter="url(#greenGlow)"/>
+  <!-- Middle ring -->
+  <circle cx="32" cy="54" r="5" fill="rgba(34,197,94,0.08)" stroke="rgba(34,197,94,0.25)" stroke-width="0.75"/>
+  <!-- Clock/checkmark icon inside punch button -->
+  <!-- Clock face -->
+  <circle cx="32" cy="54" r="3" fill="none" stroke="rgba(34,197,94,0.7)" stroke-width="1"/>
+  <!-- Clock hands -->
+  <line x1="32" y1="54" x2="32" y2="52.2" stroke="rgba(34,197,94,0.9)" stroke-width="0.8" stroke-linecap="round"/>
+  <line x1="32" y1="54" x2="33.4" y2="54.8" stroke="rgba(34,197,94,0.9)" stroke-width="0.8" stroke-linecap="round"/>
+</svg>
