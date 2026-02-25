@@ -14,6 +14,7 @@ import {
   Edit2,
   Save,
   X,
+  Trash2,
   CheckCircle2,
   XCircle,
   MinusCircle,
@@ -28,6 +29,7 @@ import {
   fetchUserPunches as fetchUserPunchesAPI,
   fetchAllUsers,
   updatePunch,
+  deletePunch,
   grantAdmin,
   revokeAdmin,
   assignSchedule,
@@ -203,6 +205,9 @@ export default function AdminDashboard() {
   const [editPunchOut, setEditPunchOut] = useState('');
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const [scheduleEditUID, setScheduleEditUID] = useState<string | null>(null);
   const [schedEditStart, setSchedEditStart] = useState('');
@@ -389,6 +394,25 @@ export default function AdminDashboard() {
       setEditError(err instanceof Error ? err.message : 'Save failed');
     } finally {
       setEditSaving(false);
+    }
+  }
+
+  async function handleDeletePunch(record: AttendanceRecord) {
+    if (
+      !window.confirm(
+        `Delete this punch record from ${fmtDate(record.punchIn)}? This cannot be undone.`,
+      )
+    )
+      return;
+    setDeletingId(record.id);
+    setDeleteError(null);
+    try {
+      await deletePunch(record.id);
+      setUserPunches((prev) => prev.filter((p) => p.id !== record.id));
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Delete failed');
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -982,10 +1006,10 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              {/* Edit error banner */}
-              {editError && (
+              {/* Edit / delete error banner */}
+              {(editError || deleteError) && (
                 <div className="px-4 py-2 border-b border-white/[0.06] bg-red-500/[0.06]">
-                  <p className="font-mono text-[11px] text-red-400">{editError}</p>
+                  <p className="font-mono text-[11px] text-red-400">{editError ?? deleteError}</p>
                 </div>
               )}
 
@@ -1121,12 +1145,26 @@ export default function AdminDashboard() {
                                     </button>
                                   </>
                                 ) : (
-                                  <button
-                                    onClick={() => startEdit(row)}
-                                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-white/[0.08] bg-white/[0.03] text-neutral-500 font-mono text-[10px] hover:text-neutral-300 hover:border-white/20 hover:bg-white/[0.06] transition-all cursor-pointer"
-                                  >
-                                    <Edit2 size={10} /> Edit
-                                  </button>
+                                  <>
+                                    <button
+                                      onClick={() => startEdit(row)}
+                                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-white/[0.08] bg-white/[0.03] text-neutral-500 font-mono text-[10px] hover:text-neutral-300 hover:border-white/20 hover:bg-white/[0.06] transition-all cursor-pointer"
+                                    >
+                                      <Edit2 size={10} /> Edit
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeletePunch(row)}
+                                      disabled={deletingId === row.id}
+                                      className="flex items-center gap-1 px-2.5 py-1 rounded-md border border-red-500/20 bg-red-500/[0.06] text-red-500 font-mono text-[10px] hover:bg-red-500/20 hover:border-red-500/40 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-wait"
+                                    >
+                                      {deletingId === row.id ? (
+                                        <Loader2 size={10} className="animate-spin" />
+                                      ) : (
+                                        <Trash2 size={10} />
+                                      )}
+                                      Delete
+                                    </button>
+                                  </>
                                 )}
                               </div>
                             </td>

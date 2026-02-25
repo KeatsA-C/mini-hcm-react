@@ -194,6 +194,24 @@ export async function updatePunch(
   return data as UpdatePunchResponse;
 }
 
+export interface DeletePunchResponse {
+  message: string;
+  id: string;
+  deleted: boolean;
+}
+
+/** DELETE /api/admin/punches/:punchId  (admin / superadmin) */
+export async function deletePunch(punchId: string): Promise<DeletePunchResponse> {
+  const token = await getToken();
+  const res = await fetch(`${API_BASE_URL}/api/admin/punches/${punchId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.message ?? `Failed to delete punch (${res.status})`);
+  return data as DeletePunchResponse;
+}
+
 /** POST /api/user/grant-admin  (superadmin only) */
 export async function grantAdmin(uid: string): Promise<{ message: string }> {
   const token = await getToken();
